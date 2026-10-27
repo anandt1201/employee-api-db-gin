@@ -1,0 +1,319 @@
+basePath: /
+definitions:
+  employee.EmployeeRequest:
+    properties:
+      department:
+        example: Engineering
+        type: string
+      email:
+        example: anand@example.com
+        type: string
+      name:
+        example: Anand
+        type: string
+    required:
+    - department
+    - email
+    - name
+    type: object
+  httpapi.EmployeeDataResponse:
+    properties:
+      data:
+        $ref: '#/definitions/httpapi.EmployeeResponse'
+    type: object
+  httpapi.EmployeeListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/httpapi.EmployeeResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/httpapi.PaginationResponse'
+    type: object
+  httpapi.EmployeeResponse:
+    properties:
+      department:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  httpapi.ErrorDetail:
+    properties:
+      code:
+        example: not_found
+        type: string
+      message:
+        example: employee not found
+        type: string
+    type: object
+  httpapi.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/httpapi.ErrorDetail'
+    type: object
+  httpapi.HealthResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    type: object
+  httpapi.PaginationResponse:
+    properties:
+      page:
+        example: 1
+        type: integer
+      page_size:
+        example: 20
+        type: integer
+      total_items:
+        example: 42
+        type: integer
+      total_pages:
+        example: 3
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: Employee CRUD API. The list endpoint allows 10 requests per client
+    IP per rolling 5-second window. Employees are stored in PostgreSQL.
+  title: Employee API
+  version: "1.0"
+paths:
+  /api/v1/employees:
+    get:
+      description: 'Returns a bounded page. Defaults: page=1, page_size=20, sort_by=id,
+        sort_order=asc. Equal sort values use ID ascending as a tiebreaker. Maximum
+        10 requests per IP per rolling 5 seconds.'
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        maximum: 1000000
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Records per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      - default: id
+        description: Sort field
+        enum:
+        - id
+        - name
+        - email
+        - department
+        in: query
+        name: sort_by
+        type: string
+      - default: asc
+        description: Sort direction
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.EmployeeListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: Seconds until the next request is allowed, rounded up
+              type: integer
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: List employees with pagination and sorting
+      tags:
+      - employees
+    post:
+      consumes:
+      - application/json
+      description: Requires name, email, and department. Email is normalized and unique.
+        Request body limit is 1 MiB.
+      parameters:
+      - description: Employee to create
+        in: body
+        name: employee
+        required: true
+        schema:
+          $ref: '#/definitions/employee.EmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: Relative URL of the created employee
+              type: string
+          schema:
+            $ref: '#/definitions/httpapi.EmployeeDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Create employee
+      tags:
+      - employees
+  /api/v1/employees/{id}:
+    delete:
+      parameters:
+      - description: Positive employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Employee deleted; no response body
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Delete employee
+      tags:
+      - employees
+    get:
+      parameters:
+      - description: Positive employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.EmployeeDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Get employee
+      tags:
+      - employees
+    put:
+      consumes:
+      - application/json
+      description: 'Full replacement: name, email, and department are required. Request
+        body limit is 1 MiB.'
+      parameters:
+      - description: Positive employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      - description: Replacement employee
+        in: body
+        name: employee
+        required: true
+        schema:
+          $ref: '#/definitions/employee.EmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.EmployeeDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Replace employee
+      tags:
+      - employees
+  /healthz:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+swagger: "2.0"
